@@ -11,10 +11,12 @@ export function LoginCard() {
     event.preventDefault();
     setMessage('Sending magic link...');
 
+    const redirectTo = process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== 'undefined' ? window.location.origin : undefined);
+
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
+        emailRedirectTo: redirectTo,
       },
     });
 
