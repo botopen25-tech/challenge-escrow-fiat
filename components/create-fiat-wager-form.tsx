@@ -22,7 +22,7 @@ export function CreateFiatWagerForm() {
       return;
     }
     setCreatedId(data.challenge.id);
-    setMessage('Draft challenge created. Next step is Stripe funding.');
+    setMessage('Draft challenge created. Next step is creator funding.');
     setForm({ title: '', creator: 'Kaiden', opponent: '', stake: '', rules: '' });
   }
 
@@ -30,7 +30,7 @@ export function CreateFiatWagerForm() {
     <form className="card" onSubmit={onSubmit}>
       <p className="badge">Create wager</p>
       <h1 style={{ margin: '14px 0 8px', fontSize: 40 }}>Create a funded challenge</h1>
-      <p className="muted" style={{ marginBottom: 24 }}>First pass of the fiat flow. This will later connect to Stripe Connect funding and payouts.</p>
+      <p className="muted" style={{ marginBottom: 24 }}>First pass of the fiat flow. This version models funding and activation before Stripe is wired in.</p>
       <div className="grid grid-2">
         <label><div style={{ marginBottom: 8 }}>Creator</div><input value={form.creator} onChange={(e) => setForm({ ...form, creator: e.target.value })} placeholder="Kaiden" /></label>
         <label><div style={{ marginBottom: 8 }}>Opponent</div><input value={form.opponent} onChange={(e) => setForm({ ...form, opponent: e.target.value })} placeholder="Friend email or username" /></label>

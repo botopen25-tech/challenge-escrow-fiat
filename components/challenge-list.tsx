@@ -6,12 +6,24 @@ import type { FiatChallenge } from '../lib/challenge-store';
 export function ChallengeList() {
   const [challenges, setChallenges] = useState<FiatChallenge[]>([]);
 
+  async function load() {
+    const res = await fetch('/api/challenges', { cache: 'no-store' });
+    const data = await res.json();
+    setChallenges(data.challenges ?? []);
+  }
+
   useEffect(() => {
-    fetch('/api/challenges', { cache: 'no-store' })
-      .then((res) => res.json())
-      .then((data) => setChallenges(data.challenges ?? []))
-      .catch(() => setChallenges([]));
+    load().catch(() => setChallenges([]));
   }, []);
+
+  async function fund(id: string, side: 'creator' | 'opponent') {
+    await fetch(`/api/challenges/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ side }),
+    });
+    await load();
+  }
 
   return (
     <div className="grid grid-2">
@@ -29,6 +41,12 @@ export function ChallengeList() {
             <div><div className="muted">Opponent</div><div>{challenge.opponent}</div></div>
             <div><div className="muted">Stake</div><div>{challenge.stake}</div></div>
             <div><div className="muted">Agreement</div><div>{challenge.agreement}</div></div>
+            <div><div className="muted">Creator funded</div><div>{challenge.creatorFunded ? 'Yes' : 'No'}</div></div>
+            <div><div className="muted">Opponent funded</div><div>{challenge.opponentFunded ? 'Yes' : 'No'}</div></div>
+          </div>
+          <div style={{ display: 'flex', gap: 12, marginTop: 20, flexWrap: 'wrap' }}>
+            {!challenge.creatorFunded ? <button className="buttonSecondary" onClick={() => fund(challenge.id, 'creator')}>Mark creator funded</button> : null}
+            {!challenge.opponentFunded ? <button className="buttonSecondary" onClick={() => fund(challenge.id, 'opponent')}>Mark opponent funded</button> : null}
           </div>
         </article>
       ))}
