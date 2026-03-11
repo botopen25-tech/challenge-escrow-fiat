@@ -1,5 +1,6 @@
 import { TopTabs } from '../components/top-tabs';
 import Link from 'next/link';
+import { LoginCard } from '../components/login-card';
 
 export default function HomePage() {
   return (
@@ -17,15 +18,7 @@ export default function HomePage() {
             <Link className="buttonSecondary" href="/challenges">See challenges</Link>
           </div>
         </div>
-        <div className="card" style={{ background: 'rgba(2,6,23,.45)' }}>
-          <p className="badge">How it works</p>
-          <div className="grid" style={{ marginTop: 16 }}>
-            <div><strong>1. Create</strong><p className="muted">Set stake, opponent, and rules.</p></div>
-            <div><strong>2. Fund</strong><p className="muted">Both sides fund before the challenge becomes active.</p></div>
-            <div><strong>3. Agree</strong><p className="muted">When both sides agree, the app triggers payout.</p></div>
-            <div><strong>4. Refund</strong><p className="muted">If not resolved in time, auto-refund is the default fallback.</p></div>
-          </div>
-        </div>
+        <LoginCard />
       </section>
     </main>
   );
