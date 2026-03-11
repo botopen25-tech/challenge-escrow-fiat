@@ -2,8 +2,8 @@
 
 import { FormEvent, useState } from 'react';
 
-export function CreateFiatWagerForm() {
-  const [form, setForm] = useState({ title: '', creator: 'Kaiden', opponent: '', stake: '', rules: '' });
+export function CreateFiatWagerForm({ creatorEmail }: { creatorEmail: string }) {
+  const [form, setForm] = useState({ title: '', opponent: '', stake: '', rules: '' });
   const [message, setMessage] = useState('');
   const [createdId, setCreatedId] = useState('');
 
@@ -14,7 +14,7 @@ export function CreateFiatWagerForm() {
     const res = await fetch('/api/challenges', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+      body: JSON.stringify({ ...form, creator: creatorEmail }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -23,16 +23,16 @@ export function CreateFiatWagerForm() {
     }
     setCreatedId(data.challenge.id);
     setMessage('Draft challenge created. Next step is creator funding.');
-    setForm({ title: '', creator: 'Kaiden', opponent: '', stake: '', rules: '' });
+    setForm({ title: '', opponent: '', stake: '', rules: '' });
   }
 
   return (
     <form className="card" onSubmit={onSubmit}>
       <p className="badge">Create wager</p>
       <h1 style={{ margin: '14px 0 8px', fontSize: 40 }}>Create a funded challenge</h1>
-      <p className="muted" style={{ marginBottom: 24 }}>First pass of the fiat flow. This version models funding and activation before Stripe is wired in.</p>
+      <p className="muted" style={{ marginBottom: 24 }}>Signed in as <strong style={{ color: 'white' }}>{creatorEmail}</strong>. This challenge will belong to your account.</p>
       <div className="grid grid-2">
-        <label><div style={{ marginBottom: 8 }}>Creator</div><input value={form.creator} onChange={(e) => setForm({ ...form, creator: e.target.value })} placeholder="Kaiden" /></label>
+        <label><div style={{ marginBottom: 8 }}>Creator</div><input value={creatorEmail} readOnly /></label>
         <label><div style={{ marginBottom: 8 }}>Opponent</div><input value={form.opponent} onChange={(e) => setForm({ ...form, opponent: e.target.value })} placeholder="Friend email or username" /></label>
         <label><div style={{ marginBottom: 8 }}>Stake</div><input value={form.stake} onChange={(e) => setForm({ ...form, stake: e.target.value })} placeholder="$25" /></label>
         <label><div style={{ marginBottom: 8 }}>Title</div><input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Friday workout challenge" /></label>

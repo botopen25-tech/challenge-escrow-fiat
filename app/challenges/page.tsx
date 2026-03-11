@@ -1,7 +1,21 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import { TopTabs } from '../../components/top-tabs';
 import { ChallengeList } from '../../components/challenge-list';
+import { supabase } from '../../lib/supabase';
 
 export default function ChallengesPage() {
+  const [email, setEmail] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setEmail(data.session?.user?.email ?? null);
+      setLoading(false);
+    });
+  }, []);
+
   return (
     <main className="shell grid" style={{ gap: 24 }}>
       <TopTabs />
@@ -9,9 +23,9 @@ export default function ChallengesPage() {
         <div>
           <p className="badge">Challenges</p>
           <h1 style={{ margin: '14px 0 8px', fontSize: 40 }}>Funding and settlement queue</h1>
-          <p className="muted">Live draft board for the non-crypto challenge flow.</p>
+          <p className="muted">{loading ? 'Checking auth…' : email ? `Showing challenges for ${email}` : 'Sign in to see challenges tied to your account.'}</p>
         </div>
-        <ChallengeList />
+        {!loading ? <ChallengeList viewerEmail={email} /> : null}
       </section>
     </main>
   );

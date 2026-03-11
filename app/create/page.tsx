@@ -27,7 +27,7 @@ export default function CreatePage() {
           <p className="muted">Go back home and use the magic link login first.</p>
         </section>
       ) : null}
-      {!loading && email ? <CreateFiatWagerForm /> : null}
+      {!loading && email ? <CreateFiatWagerForm creatorEmail={email} /> : null}
     </main>
   );
 }

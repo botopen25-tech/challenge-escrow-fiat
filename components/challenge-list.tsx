@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { FiatChallenge } from '../lib/challenge-store';
 
-export function ChallengeList() {
+export function ChallengeList({ viewerEmail }: { viewerEmail?: string | null }) {
   const [challenges, setChallenges] = useState<FiatChallenge[]>([]);
 
   async function load() {
@@ -25,9 +25,13 @@ export function ChallengeList() {
     await load();
   }
 
+  const filtered = viewerEmail
+    ? challenges.filter((challenge) => challenge.creator === viewerEmail || challenge.opponent === viewerEmail)
+    : challenges;
+
   return (
     <div className="grid grid-2">
-      {challenges.map((challenge) => (
+      {filtered.map((challenge) => (
         <article key={challenge.id} className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
             <div>
@@ -50,6 +54,7 @@ export function ChallengeList() {
           </div>
         </article>
       ))}
+      {!filtered.length ? <section className="card"><p className="muted">No challenges tied to this account yet.</p></section> : null}
     </div>
   );
 }
