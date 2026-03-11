@@ -3,7 +3,9 @@ export type FiatChallengeStatus =
   | 'Waiting for creator funding'
   | 'Waiting for opponent funding'
   | 'Active'
-  | 'Waiting on results';
+  | 'Waiting on results'
+  | 'Awaiting payout'
+  | 'Disputed';
 
 export type FiatChallenge = {
   id: string;
@@ -14,8 +16,10 @@ export type FiatChallenge = {
   rules: string;
   creatorFunded: boolean;
   opponentFunded: boolean;
+  creatorResult?: 'creator_won' | 'opponent_won' | 'tie';
+  opponentResult?: 'creator_won' | 'opponent_won' | 'tie';
   status: FiatChallengeStatus;
-  agreement: 'Pending' | 'Waiting on results' | 'Agreed';
+  agreement: 'Pending' | 'Waiting on results' | 'Agreed' | 'Conflict';
 };
 
 const challenges: FiatChallenge[] = [
@@ -40,7 +44,7 @@ const challenges: FiatChallenge[] = [
     rules: 'Higher bracket score after the final wins.',
     creatorFunded: true,
     opponentFunded: true,
-    status: 'Active',
+    status: 'Waiting on results',
     agreement: 'Waiting on results',
   },
 ];
@@ -49,7 +53,7 @@ export function listChallenges() {
   return challenges;
 }
 
-export function createChallenge(input: Omit<FiatChallenge, 'id' | 'status' | 'agreement' | 'creatorFunded' | 'opponentFunded'>) {
+export function createChallenge(input: Omit<FiatChallenge, 'id' | 'status' | 'agreement' | 'creatorFunded' | 'opponentFunded' | 'creatorResult' | 'opponentResult'>) {
   const id = `cef_${String(challenges.length + 1).padStart(3, '0')}`;
   const challenge: FiatChallenge = {
     id,
@@ -71,12 +75,35 @@ export function fundChallenge(id: string, side: 'creator' | 'opponent') {
   if (side === 'opponent') challenge.opponentFunded = true;
 
   if (challenge.creatorFunded && challenge.opponentFunded) {
-    challenge.status = 'Active';
+    challenge.status = 'Waiting on results';
     challenge.agreement = 'Waiting on results';
   } else if (challenge.creatorFunded) {
     challenge.status = 'Waiting for opponent funding';
   } else {
     challenge.status = 'Waiting for creator funding';
+  }
+
+  return challenge;
+}
+
+export function submitResult(id: string, side: 'creator' | 'opponent', choice: 'creator_won' | 'opponent_won' | 'tie') {
+  const challenge = challenges.find((item) => item.id === id);
+  if (!challenge) return null;
+
+  if (side === 'creator') challenge.creatorResult = choice;
+  if (side === 'opponent') challenge.opponentResult = choice;
+
+  if (challenge.creatorResult && challenge.opponentResult) {
+    if (challenge.creatorResult === challenge.opponentResult) {
+      challenge.agreement = 'Agreed';
+      challenge.status = 'Awaiting payout';
+    } else {
+      challenge.agreement = 'Conflict';
+      challenge.status = 'Disputed';
+    }
+  } else {
+    challenge.agreement = 'Waiting on results';
+    challenge.status = 'Waiting on results';
   }
 
   return challenge;
