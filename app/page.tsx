@@ -1,6 +1,6 @@
 import { TopTabs } from '../components/top-tabs';
 import Link from 'next/link';
-import { LoginCard } from '../components/login-card';
+import { AuthShell } from '../components/auth-shell';
 
 export default function HomePage() {
   return (
@@ -18,7 +18,7 @@ export default function HomePage() {
             <Link className="buttonSecondary" href="/challenges">See challenges</Link>
           </div>
         </div>
-        <LoginCard />
+        <AuthShell />
       </section>
     </main>
   );
