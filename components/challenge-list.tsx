@@ -8,6 +8,7 @@ function formatResolution(challenge: FiatChallenge) {
   if (!challenge.resolution) return 'Not resolved yet';
   if (challenge.resolution === 'creator') return `Creator payout queued (${challenge.payoutTarget})`;
   if (challenge.resolution === 'opponent') return `Opponent payout queued (${challenge.payoutTarget})`;
+  if (challenge.status === 'Refunded') return 'Tie detected — both sides refunded';
   return 'Tie detected — refund path queued';
 }
 
@@ -52,6 +53,9 @@ export function ChallengeList({ viewerEmail }: { viewerEmail?: string | null }) 
     setBusyKey('');
     if (!res.ok) {
       setMessage(data.error || 'Could not update challenge');
+      if (data.challenge) {
+        await load();
+      }
       return;
     }
     await load();

@@ -230,3 +230,15 @@ export async function submitResult(id: string, side: 'creator' | 'opponent', cho
   if (error) throw error;
   return toChallenge(data as ChallengeRow);
 }
+
+export async function setChallengeStatus(id: string, status: FiatChallengeStatus) {
+  const { data, error } = await supabaseAdmin
+    .from('challenges')
+    .update({ status })
+    .eq('id', id)
+    .select('*')
+    .single();
+
+  if (error) throw error;
+  return toChallenge(data as ChallengeRow);
+}

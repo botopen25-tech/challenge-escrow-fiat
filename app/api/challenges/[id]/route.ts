@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { fundChallenge, getChallenge, submitResult } from '../../../../lib/challenge-store';
+import { getStripe } from '../../../../lib/stripe';
+import { fundChallenge, getChallenge, setChallengeStatus, submitResult } from '../../../../lib/challenge-store';
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   try {
@@ -30,6 +31,26 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       if (!side || !choice) return NextResponse.json({ error: 'Missing result fields' }, { status: 400 });
       const challenge = await submitResult(params.id, side, choice);
       if (!challenge) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+      if (challenge.status === 'Refund processing') {
+        if (!challenge.creatorPaymentIntentId || !challenge.opponentPaymentIntentId) {
+          const failed = await setChallengeStatus(params.id, 'Payout failed');
+          return NextResponse.json({ challenge: failed, error: 'Missing payment intent ids for refund' }, { status: 500 });
+        }
+
+        try {
+          const stripe = getStripe();
+          await stripe.refunds.create({ payment_intent: challenge.creatorPaymentIntentId, reason: 'requested_by_customer' });
+          await stripe.refunds.create({ payment_intent: challenge.opponentPaymentIntentId, reason: 'requested_by_customer' });
+          const refunded = await setChallengeStatus(params.id, 'Refunded');
+          return NextResponse.json({ challenge: refunded });
+        } catch (error) {
+          const failed = await setChallengeStatus(params.id, 'Payout failed');
+          const message = error instanceof Error ? error.message : 'Refund failed';
+          return NextResponse.json({ challenge: failed, error: message }, { status: 500 });
+        }
+      }
+
       return NextResponse.json({ challenge });
     }
 
