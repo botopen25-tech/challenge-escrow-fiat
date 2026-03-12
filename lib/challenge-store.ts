@@ -7,9 +7,15 @@ export type FiatChallengeStatus =
   | 'Active'
   | 'Waiting on results'
   | 'Awaiting payout'
-  | 'Disputed';
+  | 'Payout processing'
+  | 'Paid out'
+  | 'Refund processing'
+  | 'Refunded'
+  | 'Disputed'
+  | 'Payout failed';
 
 export type FiatChallengeResult = 'creator_won' | 'opponent_won' | 'tie';
+export type FiatChallengeResolution = 'creator' | 'opponent' | 'tie' | null;
 
 export type FiatChallenge = {
   id: string;
@@ -24,6 +30,8 @@ export type FiatChallenge = {
   opponentResult?: FiatChallengeResult;
   status: FiatChallengeStatus;
   agreement: 'Pending' | 'Waiting on results' | 'Agreed' | 'Conflict';
+  resolution?: FiatChallengeResolution;
+  payoutTarget?: string | null;
   createdAt?: string;
 };
 
@@ -40,6 +48,8 @@ type ChallengeRow = {
   opponent_result: FiatChallengeResult | null;
   status: FiatChallengeStatus;
   agreement: 'Pending' | 'Waiting on results' | 'Agreed' | 'Conflict';
+  resolution: FiatChallengeResolution;
+  payout_target: string | null;
   created_at: string;
 };
 
@@ -57,8 +67,17 @@ function toChallenge(row: ChallengeRow): FiatChallenge {
     opponentResult: row.opponent_result ?? undefined,
     status: row.status,
     agreement: row.agreement,
+    resolution: row.resolution ?? undefined,
+    payoutTarget: row.payout_target,
     createdAt: row.created_at,
   };
+}
+
+function deriveResolution(result: FiatChallengeResult | null, creator: string, opponent: string) {
+  if (!result) return { resolution: null, payoutTarget: null };
+  if (result === 'creator_won') return { resolution: 'creator' as const, payoutTarget: creator };
+  if (result === 'opponent_won') return { resolution: 'opponent' as const, payoutTarget: opponent };
+  return { resolution: 'tie' as const, payoutTarget: null };
 }
 
 export async function listChallenges() {
@@ -82,7 +101,7 @@ export async function getChallenge(id: string) {
   return data ? toChallenge(data as ChallengeRow) : null;
 }
 
-export async function createChallenge(input: Omit<FiatChallenge, 'id' | 'status' | 'agreement' | 'creatorFunded' | 'opponentFunded' | 'creatorResult' | 'opponentResult' | 'createdAt'>) {
+export async function createChallenge(input: Omit<FiatChallenge, 'id' | 'status' | 'agreement' | 'creatorFunded' | 'opponentFunded' | 'creatorResult' | 'opponentResult' | 'resolution' | 'payoutTarget' | 'createdAt'>) {
   const { data, error } = await supabaseAdmin
     .from('challenges')
     .insert({
@@ -95,6 +114,8 @@ export async function createChallenge(input: Omit<FiatChallenge, 'id' | 'status'
       opponent_funded: false,
       status: 'Waiting for creator funding',
       agreement: 'Pending',
+      resolution: null,
+      payout_target: null,
     })
     .select('*')
     .single();
@@ -146,11 +167,16 @@ export async function submitResult(id: string, side: 'creator' | 'opponent', cho
 
   let agreement: FiatChallenge['agreement'] = 'Waiting on results';
   let status: FiatChallengeStatus = 'Waiting on results';
+  let resolution: FiatChallengeResolution = null;
+  let payoutTarget: string | null = null;
 
   if (creatorResult && opponentResult) {
     if (creatorResult === opponentResult) {
       agreement = 'Agreed';
-      status = 'Awaiting payout';
+      const derived = deriveResolution(creatorResult, current.creator, current.opponent);
+      resolution = derived.resolution;
+      payoutTarget = derived.payoutTarget;
+      status = resolution === 'tie' ? 'Refund processing' : 'Payout processing';
     } else {
       agreement = 'Conflict';
       status = 'Disputed';
@@ -164,6 +190,8 @@ export async function submitResult(id: string, side: 'creator' | 'opponent', cho
       opponent_result: opponentResult,
       agreement,
       status,
+      resolution,
+      payout_target: payoutTarget,
     })
     .eq('id', id)
     .select('*')

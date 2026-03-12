@@ -13,7 +13,12 @@ create table if not exists public.challenges (
   opponent_result text,
   status text not null default 'Waiting for creator funding',
   agreement text not null default 'Pending',
+  resolution text,
+  payout_target text,
   created_at timestamptz not null default now()
 );
+
+alter table public.challenges add column if not exists resolution text;
+alter table public.challenges add column if not exists payout_target text;
 
 alter table public.challenges disable row level security;

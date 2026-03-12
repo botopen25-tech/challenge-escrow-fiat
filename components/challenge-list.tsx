@@ -4,6 +4,13 @@ import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { FiatChallenge } from '../lib/challenge-store';
 
+function formatResolution(challenge: FiatChallenge) {
+  if (!challenge.resolution) return 'Not resolved yet';
+  if (challenge.resolution === 'creator') return `Creator payout queued (${challenge.payoutTarget})`;
+  if (challenge.resolution === 'opponent') return `Opponent payout queued (${challenge.payoutTarget})`;
+  return 'Tie detected — refund path queued';
+}
+
 export function ChallengeList({ viewerEmail }: { viewerEmail?: string | null }) {
   const [challenges, setChallenges] = useState<FiatChallenge[]>([]);
   const [message, setMessage] = useState('');
@@ -114,11 +121,13 @@ export function ChallengeList({ viewerEmail }: { viewerEmail?: string | null }) 
                 <div><div className="muted">Opponent funded</div><div>{challenge.opponentFunded ? 'Yes' : 'No'}</div></div>
                 <div><div className="muted">Creator result</div><div>{challenge.creatorResult ?? 'Waiting'}</div></div>
                 <div><div className="muted">Opponent result</div><div>{challenge.opponentResult ?? 'Waiting'}</div></div>
+                <div><div className="muted">Resolution</div><div>{formatResolution(challenge)}</div></div>
+                <div><div className="muted">Payout target</div><div>{challenge.payoutTarget ?? 'None yet'}</div></div>
               </div>
               <div style={{ display: 'flex', gap: 12, marginTop: 20, flexWrap: 'wrap' }}>
                 {canFundCreator ? <button type="button" className="buttonSecondary" disabled={busyKey === `${challenge.id}:fund:creator`} onClick={() => startFunding(challenge.id, 'creator')}>{busyKey === `${challenge.id}:fund:creator` ? 'Opening Stripe…' : 'Fund my side'}</button> : null}
                 {canFundOpponent ? <button type="button" className="buttonSecondary" disabled={busyKey === `${challenge.id}:fund:opponent`} onClick={() => startFunding(challenge.id, 'opponent')}>{busyKey === `${challenge.id}:fund:opponent` ? 'Opening Stripe…' : 'Fund my side'}</button> : null}
-                {challenge.status !== 'Waiting on results' && waitingOnOtherSide ? <p className="muted" style={{ margin: 0 }}>{waitingOnOtherSide}</p> : null}
+                {challenge.status !== 'Waiting on results' && !challenge.status.includes('processing') && waitingOnOtherSide ? <p className="muted" style={{ margin: 0 }}>{waitingOnOtherSide}</p> : null}
                 {challenge.status === 'Waiting on results' && mySide ? (
                   <>
                     <button type="button" className="buttonSecondary" onClick={() => updateChallenge(challenge.id, { type: 'result', side: mySide, choice: 'creator_won' })}>Creator won</button>

@@ -18,8 +18,13 @@ create table if not exists public.challenges (
   opponent_result text,
   status text not null default 'Waiting for creator funding',
   agreement text not null default 'Pending',
+  resolution text,
+  payout_target text,
   created_at timestamptz not null default now()
 );
+
+alter table public.challenges add column if not exists resolution text;
+alter table public.challenges add column if not exists payout_target text;
 
 alter table public.challenges disable row level security;
 ```
@@ -28,3 +33,11 @@ Optional but recommended for server writes on Vercel:
 - add `SUPABASE_SERVICE_ROLE_KEY` to the app env vars
 
 Current code will fall back to the anon key if service role is not set.
+
+## Current payout-state behavior
+- matching `creator_won` votes -> `Payout processing`
+- matching `opponent_won` votes -> `Payout processing`
+- matching `tie` votes -> `Refund processing`
+- conflicting votes -> `Disputed`
+
+This is state-machine logic only for now. Real Stripe payouts/refunds are not wired yet.
