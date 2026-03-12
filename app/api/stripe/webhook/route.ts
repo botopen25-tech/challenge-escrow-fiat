@@ -1,7 +1,7 @@
 import Stripe from 'stripe';
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { fundChallenge } from '../../../../lib/challenge-store';
+import { markFundingCaptured } from '../../../../lib/challenge-store';
 import { getStripe } from '../../../../lib/stripe';
 
 export async function POST(request: Request) {
@@ -26,8 +26,12 @@ export async function POST(request: Request) {
     const session = event.data.object as Stripe.Checkout.Session;
     const challengeId = session.metadata?.challengeId;
     const side = session.metadata?.side as 'creator' | 'opponent' | undefined;
+    const paymentIntentId = typeof session.payment_intent === 'string'
+      ? session.payment_intent
+      : session.payment_intent?.id ?? null;
+
     if (challengeId && side) {
-      await fundChallenge(challengeId, side);
+      await markFundingCaptured(challengeId, side, session.id, paymentIntentId);
     }
   }
 

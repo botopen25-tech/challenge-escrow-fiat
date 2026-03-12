@@ -32,6 +32,10 @@ export type FiatChallenge = {
   agreement: 'Pending' | 'Waiting on results' | 'Agreed' | 'Conflict';
   resolution?: FiatChallengeResolution;
   payoutTarget?: string | null;
+  creatorCheckoutSessionId?: string | null;
+  opponentCheckoutSessionId?: string | null;
+  creatorPaymentIntentId?: string | null;
+  opponentPaymentIntentId?: string | null;
   createdAt?: string;
 };
 
@@ -50,6 +54,10 @@ type ChallengeRow = {
   agreement: 'Pending' | 'Waiting on results' | 'Agreed' | 'Conflict';
   resolution: FiatChallengeResolution;
   payout_target: string | null;
+  creator_checkout_session_id: string | null;
+  opponent_checkout_session_id: string | null;
+  creator_payment_intent_id: string | null;
+  opponent_payment_intent_id: string | null;
   created_at: string;
 };
 
@@ -69,6 +77,10 @@ function toChallenge(row: ChallengeRow): FiatChallenge {
     agreement: row.agreement,
     resolution: row.resolution ?? undefined,
     payoutTarget: row.payout_target,
+    creatorCheckoutSessionId: row.creator_checkout_session_id,
+    opponentCheckoutSessionId: row.opponent_checkout_session_id,
+    creatorPaymentIntentId: row.creator_payment_intent_id,
+    opponentPaymentIntentId: row.opponent_payment_intent_id,
     createdAt: row.created_at,
   };
 }
@@ -101,7 +113,7 @@ export async function getChallenge(id: string) {
   return data ? toChallenge(data as ChallengeRow) : null;
 }
 
-export async function createChallenge(input: Omit<FiatChallenge, 'id' | 'status' | 'agreement' | 'creatorFunded' | 'opponentFunded' | 'creatorResult' | 'opponentResult' | 'resolution' | 'payoutTarget' | 'createdAt'>) {
+export async function createChallenge(input: Omit<FiatChallenge, 'id' | 'status' | 'agreement' | 'creatorFunded' | 'opponentFunded' | 'creatorResult' | 'opponentResult' | 'resolution' | 'payoutTarget' | 'creatorCheckoutSessionId' | 'opponentCheckoutSessionId' | 'creatorPaymentIntentId' | 'opponentPaymentIntentId' | 'createdAt'>) {
   const { data, error } = await supabaseAdmin
     .from('challenges')
     .insert({
@@ -116,6 +128,10 @@ export async function createChallenge(input: Omit<FiatChallenge, 'id' | 'status'
       agreement: 'Pending',
       resolution: null,
       payout_target: null,
+      creator_checkout_session_id: null,
+      opponent_checkout_session_id: null,
+      creator_payment_intent_id: null,
+      opponent_payment_intent_id: null,
     })
     .select('*')
     .single();
@@ -124,7 +140,7 @@ export async function createChallenge(input: Omit<FiatChallenge, 'id' | 'status'
   return toChallenge(data as ChallengeRow);
 }
 
-export async function fundChallenge(id: string, side: 'creator' | 'opponent') {
+export async function markFundingCaptured(id: string, side: 'creator' | 'opponent', checkoutSessionId: string | null, paymentIntentId: string | null) {
   const current = await getChallenge(id);
   if (!current) return null;
 
@@ -142,20 +158,34 @@ export async function fundChallenge(id: string, side: 'creator' | 'opponent') {
     agreement = 'Pending';
   }
 
+  const update: Record<string, string | boolean | null> = {
+    creator_funded: creatorFunded,
+    opponent_funded: opponentFunded,
+    status,
+    agreement,
+  };
+
+  if (side === 'creator') {
+    update.creator_checkout_session_id = checkoutSessionId;
+    update.creator_payment_intent_id = paymentIntentId;
+  } else {
+    update.opponent_checkout_session_id = checkoutSessionId;
+    update.opponent_payment_intent_id = paymentIntentId;
+  }
+
   const { data, error } = await supabaseAdmin
     .from('challenges')
-    .update({
-      creator_funded: creatorFunded,
-      opponent_funded: opponentFunded,
-      status,
-      agreement,
-    })
+    .update(update)
     .eq('id', id)
     .select('*')
     .single();
 
   if (error) throw error;
   return toChallenge(data as ChallengeRow);
+}
+
+export async function fundChallenge(id: string, side: 'creator' | 'opponent') {
+  return markFundingCaptured(id, side, null, null);
 }
 
 export async function submitResult(id: string, side: 'creator' | 'opponent', choice: FiatChallengeResult) {
