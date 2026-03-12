@@ -18,7 +18,7 @@ export async function POST(request: Request) {
   let event: Stripe.Event;
   try {
     event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
   }
 
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     const challengeId = session.metadata?.challengeId;
     const side = session.metadata?.side as 'creator' | 'opponent' | undefined;
     if (challengeId && side) {
-      fundChallenge(challengeId, side);
+      await fundChallenge(challengeId, side);
     }
   }
 

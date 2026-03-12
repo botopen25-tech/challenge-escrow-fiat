@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import type { FiatChallenge } from '../lib/challenge-store';
 
 export function ChallengeList({ viewerEmail }: { viewerEmail?: string | null }) {
   const [challenges, setChallenges] = useState<FiatChallenge[]>([]);
   const [message, setMessage] = useState('');
   const [busyKey, setBusyKey] = useState('');
+  const router = useRouter();
   const searchParams = useSearchParams();
   const checkoutState = searchParams.get('checkout');
 
@@ -20,6 +21,17 @@ export function ChallengeList({ viewerEmail }: { viewerEmail?: string | null }) 
   useEffect(() => {
     load().catch(() => setChallenges([]));
   }, []);
+
+  useEffect(() => {
+    if (!checkoutState) return;
+
+    load().catch(() => setChallenges([]));
+    const timer = window.setTimeout(() => {
+      router.replace('/challenges');
+    }, 2500);
+
+    return () => window.clearTimeout(timer);
+  }, [checkoutState, router]);
 
   async function updateChallenge(id: string, payload: Record<string, string>) {
     setMessage('');
@@ -68,12 +80,22 @@ export function ChallengeList({ viewerEmail }: { viewerEmail?: string | null }) 
 
   return (
     <div className="grid" style={{ gap: 16 }}>
-      {checkoutState === 'success' ? <section className="card"><p>Stripe checkout completed. Waiting for webhook confirmation.</p></section> : null}
+      {checkoutState === 'success' ? <section className="card"><p>Stripe checkout completed. Refreshing challenge state…</p></section> : null}
       {checkoutState === 'cancelled' ? <section className="card"><p>Stripe checkout was cancelled.</p></section> : null}
       {message ? <section className="card"><p>{message}</p></section> : null}
       <div className="grid grid-2">
         {filtered.map((challenge) => {
           const mySide = viewerEmail === challenge.creator ? 'creator' : viewerEmail === challenge.opponent ? 'opponent' : null;
+          const canFundCreator = mySide === 'creator' && !challenge.creatorFunded;
+          const canFundOpponent = mySide === 'opponent' && !challenge.opponentFunded;
+          const waitingOnOtherSide = !mySide
+            ? 'Sign in as a participant to fund this wager.'
+            : mySide === 'creator' && !challenge.opponentFunded
+              ? 'Opponent must log in to fund their side.'
+              : mySide === 'opponent' && !challenge.creatorFunded
+                ? 'Creator must log in to fund their side.'
+                : '';
+
           return (
             <article key={challenge.id} className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
@@ -94,10 +116,9 @@ export function ChallengeList({ viewerEmail }: { viewerEmail?: string | null }) 
                 <div><div className="muted">Opponent result</div><div>{challenge.opponentResult ?? 'Waiting'}</div></div>
               </div>
               <div style={{ display: 'flex', gap: 12, marginTop: 20, flexWrap: 'wrap' }}>
-                {!challenge.creatorFunded ? <button type="button" className="buttonSecondary" disabled={busyKey === `${challenge.id}:fund:creator`} onClick={() => startFunding(challenge.id, 'creator')}>{busyKey === `${challenge.id}:fund:creator` ? 'Opening Stripe…' : 'Fund creator side'}</button> : null}
-                {!challenge.opponentFunded ? <button type="button" className="buttonSecondary" disabled={busyKey === `${challenge.id}:fund:opponent`} onClick={() => startFunding(challenge.id, 'opponent')}>{busyKey === `${challenge.id}:fund:opponent` ? 'Opening Stripe…' : 'Fund opponent side'}</button> : null}
-                {!challenge.creatorFunded ? <button type="button" className="buttonSecondary" onClick={() => updateChallenge(challenge.id, { type: 'fund', side: 'creator' })}>Simulate creator funded</button> : null}
-                {!challenge.opponentFunded ? <button type="button" className="buttonSecondary" onClick={() => updateChallenge(challenge.id, { type: 'fund', side: 'opponent' })}>Simulate opponent funded</button> : null}
+                {canFundCreator ? <button type="button" className="buttonSecondary" disabled={busyKey === `${challenge.id}:fund:creator`} onClick={() => startFunding(challenge.id, 'creator')}>{busyKey === `${challenge.id}:fund:creator` ? 'Opening Stripe…' : 'Fund my side'}</button> : null}
+                {canFundOpponent ? <button type="button" className="buttonSecondary" disabled={busyKey === `${challenge.id}:fund:opponent`} onClick={() => startFunding(challenge.id, 'opponent')}>{busyKey === `${challenge.id}:fund:opponent` ? 'Opening Stripe…' : 'Fund my side'}</button> : null}
+                {challenge.status !== 'Waiting on results' && waitingOnOtherSide ? <p className="muted" style={{ margin: 0 }}>{waitingOnOtherSide}</p> : null}
                 {challenge.status === 'Waiting on results' && mySide ? (
                   <>
                     <button type="button" className="buttonSecondary" onClick={() => updateChallenge(challenge.id, { type: 'result', side: mySide, choice: 'creator_won' })}>Creator won</button>
