@@ -7,6 +7,6 @@ export function getStripe() {
   }
 
   return new Stripe(key, {
-    apiVersion: '2025-02-24.acacia',
+    apiVersion: '2022-11-15',
   });
 }
