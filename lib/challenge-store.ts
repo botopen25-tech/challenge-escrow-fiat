@@ -1,3 +1,5 @@
+import { supabaseAdmin } from './supabase-admin';
+
 export type FiatChallengeStatus =
   | 'Draft'
   | 'Waiting for creator funding'
@@ -6,6 +8,8 @@ export type FiatChallengeStatus =
   | 'Waiting on results'
   | 'Awaiting payout'
   | 'Disputed';
+
+export type FiatChallengeResult = 'creator_won' | 'opponent_won' | 'tie';
 
 export type FiatChallenge = {
   id: string;
@@ -16,95 +20,155 @@ export type FiatChallenge = {
   rules: string;
   creatorFunded: boolean;
   opponentFunded: boolean;
-  creatorResult?: 'creator_won' | 'opponent_won' | 'tie';
-  opponentResult?: 'creator_won' | 'opponent_won' | 'tie';
+  creatorResult?: FiatChallengeResult;
+  opponentResult?: FiatChallengeResult;
   status: FiatChallengeStatus;
   agreement: 'Pending' | 'Waiting on results' | 'Agreed' | 'Conflict';
+  createdAt?: string;
 };
 
-const challenges: FiatChallenge[] = [
-  {
-    id: 'cef_001',
-    title: 'Friday workout challenge',
-    creator: 'Kaiden',
-    opponent: 'Friend',
-    stake: '$25',
-    rules: 'Most miles by Sunday night wins.',
-    creatorFunded: true,
-    opponentFunded: false,
-    status: 'Waiting for opponent funding',
-    agreement: 'Pending',
-  },
-  {
-    id: 'cef_002',
-    title: 'March Madness side bet',
-    creator: 'Kaiden',
-    opponent: 'Chris',
-    stake: '$50',
-    rules: 'Higher bracket score after the final wins.',
-    creatorFunded: true,
-    opponentFunded: true,
-    status: 'Waiting on results',
-    agreement: 'Waiting on results',
-  },
-];
+type ChallengeRow = {
+  id: string;
+  title: string;
+  creator: string;
+  opponent: string;
+  stake: string;
+  rules: string;
+  creator_funded: boolean;
+  opponent_funded: boolean;
+  creator_result: FiatChallengeResult | null;
+  opponent_result: FiatChallengeResult | null;
+  status: FiatChallengeStatus;
+  agreement: 'Pending' | 'Waiting on results' | 'Agreed' | 'Conflict';
+  created_at: string;
+};
 
-export function listChallenges() {
-  return challenges;
-}
-
-export function createChallenge(input: Omit<FiatChallenge, 'id' | 'status' | 'agreement' | 'creatorFunded' | 'opponentFunded' | 'creatorResult' | 'opponentResult'>) {
-  const id = `cef_${String(challenges.length + 1).padStart(3, '0')}`;
-  const challenge: FiatChallenge = {
-    id,
-    ...input,
-    creatorFunded: false,
-    opponentFunded: false,
-    status: 'Waiting for creator funding',
-    agreement: 'Pending',
+function toChallenge(row: ChallengeRow): FiatChallenge {
+  return {
+    id: row.id,
+    title: row.title,
+    creator: row.creator,
+    opponent: row.opponent,
+    stake: row.stake,
+    rules: row.rules,
+    creatorFunded: row.creator_funded,
+    opponentFunded: row.opponent_funded,
+    creatorResult: row.creator_result ?? undefined,
+    opponentResult: row.opponent_result ?? undefined,
+    status: row.status,
+    agreement: row.agreement,
+    createdAt: row.created_at,
   };
-  challenges.unshift(challenge);
-  return challenge;
 }
 
-export function fundChallenge(id: string, side: 'creator' | 'opponent') {
-  const challenge = challenges.find((item) => item.id === id);
-  if (!challenge) return null;
+export async function listChallenges() {
+  const { data, error } = await supabaseAdmin
+    .from('challenges')
+    .select('*')
+    .order('created_at', { ascending: false });
 
-  if (side === 'creator') challenge.creatorFunded = true;
-  if (side === 'opponent') challenge.opponentFunded = true;
+  if (error) throw error;
+  return (data ?? []).map((row) => toChallenge(row as ChallengeRow));
+}
 
-  if (challenge.creatorFunded && challenge.opponentFunded) {
-    challenge.status = 'Waiting on results';
-    challenge.agreement = 'Waiting on results';
-  } else if (challenge.creatorFunded) {
-    challenge.status = 'Waiting for opponent funding';
-  } else {
-    challenge.status = 'Waiting for creator funding';
+export async function getChallenge(id: string) {
+  const { data, error } = await supabaseAdmin
+    .from('challenges')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ? toChallenge(data as ChallengeRow) : null;
+}
+
+export async function createChallenge(input: Omit<FiatChallenge, 'id' | 'status' | 'agreement' | 'creatorFunded' | 'opponentFunded' | 'creatorResult' | 'opponentResult' | 'createdAt'>) {
+  const { data, error } = await supabaseAdmin
+    .from('challenges')
+    .insert({
+      title: input.title,
+      creator: input.creator,
+      opponent: input.opponent,
+      stake: input.stake,
+      rules: input.rules,
+      creator_funded: false,
+      opponent_funded: false,
+      status: 'Waiting for creator funding',
+      agreement: 'Pending',
+    })
+    .select('*')
+    .single();
+
+  if (error) throw error;
+  return toChallenge(data as ChallengeRow);
+}
+
+export async function fundChallenge(id: string, side: 'creator' | 'opponent') {
+  const current = await getChallenge(id);
+  if (!current) return null;
+
+  const creatorFunded = side === 'creator' ? true : current.creatorFunded;
+  const opponentFunded = side === 'opponent' ? true : current.opponentFunded;
+
+  let status: FiatChallengeStatus = 'Waiting for creator funding';
+  let agreement: FiatChallenge['agreement'] = current.agreement;
+
+  if (creatorFunded && opponentFunded) {
+    status = 'Waiting on results';
+    agreement = 'Waiting on results';
+  } else if (creatorFunded) {
+    status = 'Waiting for opponent funding';
+    agreement = 'Pending';
   }
 
-  return challenge;
+  const { data, error } = await supabaseAdmin
+    .from('challenges')
+    .update({
+      creator_funded: creatorFunded,
+      opponent_funded: opponentFunded,
+      status,
+      agreement,
+    })
+    .eq('id', id)
+    .select('*')
+    .single();
+
+  if (error) throw error;
+  return toChallenge(data as ChallengeRow);
 }
 
-export function submitResult(id: string, side: 'creator' | 'opponent', choice: 'creator_won' | 'opponent_won' | 'tie') {
-  const challenge = challenges.find((item) => item.id === id);
-  if (!challenge) return null;
+export async function submitResult(id: string, side: 'creator' | 'opponent', choice: FiatChallengeResult) {
+  const current = await getChallenge(id);
+  if (!current) return null;
 
-  if (side === 'creator') challenge.creatorResult = choice;
-  if (side === 'opponent') challenge.opponentResult = choice;
+  const creatorResult = side === 'creator' ? choice : current.creatorResult ?? null;
+  const opponentResult = side === 'opponent' ? choice : current.opponentResult ?? null;
 
-  if (challenge.creatorResult && challenge.opponentResult) {
-    if (challenge.creatorResult === challenge.opponentResult) {
-      challenge.agreement = 'Agreed';
-      challenge.status = 'Awaiting payout';
+  let agreement: FiatChallenge['agreement'] = 'Waiting on results';
+  let status: FiatChallengeStatus = 'Waiting on results';
+
+  if (creatorResult && opponentResult) {
+    if (creatorResult === opponentResult) {
+      agreement = 'Agreed';
+      status = 'Awaiting payout';
     } else {
-      challenge.agreement = 'Conflict';
-      challenge.status = 'Disputed';
+      agreement = 'Conflict';
+      status = 'Disputed';
     }
-  } else {
-    challenge.agreement = 'Waiting on results';
-    challenge.status = 'Waiting on results';
   }
 
-  return challenge;
+  const { data, error } = await supabaseAdmin
+    .from('challenges')
+    .update({
+      creator_result: creatorResult,
+      opponent_result: opponentResult,
+      agreement,
+      status,
+    })
+    .eq('id', id)
+    .select('*')
+    .single();
+
+  if (error) throw error;
+  return toChallenge(data as ChallengeRow);
 }

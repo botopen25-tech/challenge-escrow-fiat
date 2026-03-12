@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getStripe } from '../../../../lib/stripe';
-import { listChallenges } from '../../../../lib/challenge-store';
+import { getChallenge } from '../../../../lib/challenge-store';
 
 export async function POST(request: Request) {
   try {
@@ -17,9 +17,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing NEXT_PUBLIC_SITE_URL' }, { status: 500 });
     }
 
-    const challenge = listChallenges().find((item) => item.id === challengeId);
+    const challenge = await getChallenge(challengeId);
     if (!challenge) {
-      return NextResponse.json({ error: 'Challenge not found in server store yet. Refresh and try again.' }, { status: 404 });
+      return NextResponse.json({ error: 'Challenge not found' }, { status: 404 });
     }
 
     const stripe = getStripe();
