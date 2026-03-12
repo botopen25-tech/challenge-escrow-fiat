@@ -6,6 +6,8 @@ import type { FiatChallenge } from '../lib/challenge-store';
 
 export function ChallengeList({ viewerEmail }: { viewerEmail?: string | null }) {
   const [challenges, setChallenges] = useState<FiatChallenge[]>([]);
+  const [message, setMessage] = useState('');
+  const [busyKey, setBusyKey] = useState('');
   const searchParams = useSearchParams();
   const checkoutState = searchParams.get('checkout');
 
@@ -20,24 +22,44 @@ export function ChallengeList({ viewerEmail }: { viewerEmail?: string | null }) 
   }, []);
 
   async function updateChallenge(id: string, payload: Record<string, string>) {
-    await fetch(`/api/challenges/${id}`, {
+    setMessage('');
+    setBusyKey(`${id}:${payload.type}:${payload.side ?? ''}`);
+    const res = await fetch(`/api/challenges/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
+    const data = await res.json().catch(() => ({}));
+    setBusyKey('');
+    if (!res.ok) {
+      setMessage(data.error || 'Could not update challenge');
+      return;
+    }
     await load();
   }
 
   async function startFunding(id: string, side: 'creator' | 'opponent') {
+    setMessage('');
+    setBusyKey(`${id}:fund:${side}`);
     const res = await fetch('/api/stripe/create-checkout-session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ challengeId: id, side }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
+    setBusyKey('');
+
+    if (!res.ok) {
+      setMessage(data.error || 'Stripe checkout failed to start');
+      return;
+    }
+
     if (data.url) {
       window.location.href = data.url;
+      return;
     }
+
+    setMessage('Stripe checkout did not return a redirect URL');
   }
 
   const filtered = viewerEmail
@@ -48,6 +70,7 @@ export function ChallengeList({ viewerEmail }: { viewerEmail?: string | null }) 
     <div className="grid" style={{ gap: 16 }}>
       {checkoutState === 'success' ? <section className="card"><p>Stripe checkout completed. Waiting for webhook confirmation.</p></section> : null}
       {checkoutState === 'cancelled' ? <section className="card"><p>Stripe checkout was cancelled.</p></section> : null}
+      {message ? <section className="card"><p>{message}</p></section> : null}
       <div className="grid grid-2">
         {filtered.map((challenge) => {
           const mySide = viewerEmail === challenge.creator ? 'creator' : viewerEmail === challenge.opponent ? 'opponent' : null;
@@ -71,15 +94,15 @@ export function ChallengeList({ viewerEmail }: { viewerEmail?: string | null }) 
                 <div><div className="muted">Opponent result</div><div>{challenge.opponentResult ?? 'Waiting'}</div></div>
               </div>
               <div style={{ display: 'flex', gap: 12, marginTop: 20, flexWrap: 'wrap' }}>
-                {!challenge.creatorFunded ? <button className="buttonSecondary" onClick={() => startFunding(challenge.id, 'creator')}>Fund creator side</button> : null}
-                {!challenge.opponentFunded ? <button className="buttonSecondary" onClick={() => startFunding(challenge.id, 'opponent')}>Fund opponent side</button> : null}
-                {!challenge.creatorFunded ? <button className="buttonSecondary" onClick={() => updateChallenge(challenge.id, { type: 'fund', side: 'creator' })}>Simulate creator funded</button> : null}
-                {!challenge.opponentFunded ? <button className="buttonSecondary" onClick={() => updateChallenge(challenge.id, { type: 'fund', side: 'opponent' })}>Simulate opponent funded</button> : null}
+                {!challenge.creatorFunded ? <button type="button" className="buttonSecondary" disabled={busyKey === `${challenge.id}:fund:creator`} onClick={() => startFunding(challenge.id, 'creator')}>{busyKey === `${challenge.id}:fund:creator` ? 'Opening Stripe…' : 'Fund creator side'}</button> : null}
+                {!challenge.opponentFunded ? <button type="button" className="buttonSecondary" disabled={busyKey === `${challenge.id}:fund:opponent`} onClick={() => startFunding(challenge.id, 'opponent')}>{busyKey === `${challenge.id}:fund:opponent` ? 'Opening Stripe…' : 'Fund opponent side'}</button> : null}
+                {!challenge.creatorFunded ? <button type="button" className="buttonSecondary" onClick={() => updateChallenge(challenge.id, { type: 'fund', side: 'creator' })}>Simulate creator funded</button> : null}
+                {!challenge.opponentFunded ? <button type="button" className="buttonSecondary" onClick={() => updateChallenge(challenge.id, { type: 'fund', side: 'opponent' })}>Simulate opponent funded</button> : null}
                 {challenge.status === 'Waiting on results' && mySide ? (
                   <>
-                    <button className="buttonSecondary" onClick={() => updateChallenge(challenge.id, { type: 'result', side: mySide, choice: 'creator_won' })}>Creator won</button>
-                    <button className="buttonSecondary" onClick={() => updateChallenge(challenge.id, { type: 'result', side: mySide, choice: 'opponent_won' })}>Opponent won</button>
-                    <button className="buttonSecondary" onClick={() => updateChallenge(challenge.id, { type: 'result', side: mySide, choice: 'tie' })}>Tie</button>
+                    <button type="button" className="buttonSecondary" onClick={() => updateChallenge(challenge.id, { type: 'result', side: mySide, choice: 'creator_won' })}>Creator won</button>
+                    <button type="button" className="buttonSecondary" onClick={() => updateChallenge(challenge.id, { type: 'result', side: mySide, choice: 'opponent_won' })}>Opponent won</button>
+                    <button type="button" className="buttonSecondary" onClick={() => updateChallenge(challenge.id, { type: 'result', side: mySide, choice: 'tie' })}>Tie</button>
                   </>
                 ) : null}
               </div>
