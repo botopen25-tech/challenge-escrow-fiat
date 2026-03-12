@@ -23,6 +23,8 @@ export async function POST(request: Request) {
       opponent: String(body.opponent),
       stake: String(body.stake),
       rules: String(body.rules ?? ''),
+      creatorPayoutEmail: String(body.creatorPayoutEmail ?? body.creator),
+      opponentPayoutEmail: String(body.opponentPayoutEmail ?? body.opponent),
     });
 
     return NextResponse.json({ challenge }, { status: 201 });

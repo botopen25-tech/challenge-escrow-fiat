@@ -3,7 +3,7 @@
 import { FormEvent, useState } from 'react';
 
 export function CreateFiatWagerForm({ creatorEmail }: { creatorEmail: string }) {
-  const [form, setForm] = useState({ title: '', opponent: '', stake: '', rules: '' });
+  const [form, setForm] = useState({ title: '', opponent: '', opponentPayoutEmail: '', stake: '', rules: '' });
   const [message, setMessage] = useState('');
   const [createdId, setCreatedId] = useState('');
 
@@ -14,7 +14,12 @@ export function CreateFiatWagerForm({ creatorEmail }: { creatorEmail: string }) 
     const res = await fetch('/api/challenges', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...form, creator: creatorEmail }),
+      body: JSON.stringify({
+        ...form,
+        creator: creatorEmail,
+        creatorPayoutEmail: creatorEmail,
+        opponentPayoutEmail: form.opponentPayoutEmail || form.opponent,
+      }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -23,7 +28,7 @@ export function CreateFiatWagerForm({ creatorEmail }: { creatorEmail: string }) 
     }
     setCreatedId(data.challenge.id);
     setMessage('Draft challenge created. Next step is creator funding.');
-    setForm({ title: '', opponent: '', stake: '', rules: '' });
+    setForm({ title: '', opponent: '', opponentPayoutEmail: '', stake: '', rules: '' });
   }
 
   return (
@@ -34,6 +39,8 @@ export function CreateFiatWagerForm({ creatorEmail }: { creatorEmail: string }) 
       <div className="grid grid-2">
         <label><div style={{ marginBottom: 8 }}>Creator</div><input value={creatorEmail} readOnly /></label>
         <label><div style={{ marginBottom: 8 }}>Opponent</div><input value={form.opponent} onChange={(e) => setForm({ ...form, opponent: e.target.value })} placeholder="Friend email or username" /></label>
+        <label><div style={{ marginBottom: 8 }}>Creator payout email</div><input value={creatorEmail} readOnly /></label>
+        <label><div style={{ marginBottom: 8 }}>Opponent payout email</div><input value={form.opponentPayoutEmail} onChange={(e) => setForm({ ...form, opponentPayoutEmail: e.target.value })} placeholder="Optional — defaults to opponent field" /></label>
         <label><div style={{ marginBottom: 8 }}>Stake</div><input value={form.stake} onChange={(e) => setForm({ ...form, stake: e.target.value })} placeholder="$25" /></label>
         <label><div style={{ marginBottom: 8 }}>Title</div><input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Friday workout challenge" /></label>
       </div>

@@ -20,6 +20,8 @@ create table if not exists public.challenges (
   agreement text not null default 'Pending',
   resolution text,
   payout_target text,
+  creator_payout_email text,
+  opponent_payout_email text,
   creator_checkout_session_id text,
   opponent_checkout_session_id text,
   creator_payment_intent_id text,
@@ -29,6 +31,10 @@ create table if not exists public.challenges (
 
 alter table public.challenges add column if not exists resolution text;
 alter table public.challenges add column if not exists payout_target text;
+
+alter table public.challenges add column if not exists creator_payout_email text;
+alter table public.challenges add column if not exists opponent_payout_email text;
+
 alter table public.challenges add column if not exists creator_checkout_session_id text;
 alter table public.challenges add column if not exists opponent_checkout_session_id text;
 alter table public.challenges add column if not exists creator_payment_intent_id text;
@@ -45,13 +51,15 @@ Current code will fall back to the anon key if service role is not set.
 ## Current payout-state behavior
 - matching `creator_won` votes -> `Payout processing`
 - matching `opponent_won` votes -> `Payout processing`
-- matching `tie` votes -> `Refund processing`
+- matching `tie` votes -> `Refund processing` -> `Refunded`
 - conflicting votes -> `Disputed`
 
-## Stripe money tracking now stored
+## Payout destination prep now stored
+- creator payout email
+- opponent payout email
 - creator checkout session id
 - opponent checkout session id
 - creator payment intent id
 - opponent payment intent id
 
-This prepares the app for real refund/payout execution next.
+This is still prep for winner payout architecture, not full money-out yet.

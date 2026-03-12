@@ -15,6 +15,8 @@ create table if not exists public.challenges (
   agreement text not null default 'Pending',
   resolution text,
   payout_target text,
+  creator_payout_email text,
+  opponent_payout_email text,
   creator_checkout_session_id text,
   opponent_checkout_session_id text,
   creator_payment_intent_id text,
@@ -24,6 +26,8 @@ create table if not exists public.challenges (
 
 alter table public.challenges add column if not exists resolution text;
 alter table public.challenges add column if not exists payout_target text;
+alter table public.challenges add column if not exists creator_payout_email text;
+alter table public.challenges add column if not exists opponent_payout_email text;
 alter table public.challenges add column if not exists creator_checkout_session_id text;
 alter table public.challenges add column if not exists opponent_checkout_session_id text;
 alter table public.challenges add column if not exists creator_payment_intent_id text;

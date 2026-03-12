@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getStripe } from '../../../../lib/stripe';
-import { fundChallenge, getChallenge, setChallengeStatus, submitResult } from '../../../../lib/challenge-store';
+import { fundChallenge, getChallenge, setChallengeStatus, submitResult, updatePayoutEmail } from '../../../../lib/challenge-store';
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   try {
@@ -22,6 +22,14 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       if (!side) return NextResponse.json({ error: 'Missing side' }, { status: 400 });
       const challenge = await fundChallenge(params.id, side);
       if (!challenge) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      return NextResponse.json({ challenge });
+    }
+
+    if (body?.type === 'payout_profile') {
+      const side = body?.side as 'creator' | 'opponent' | undefined;
+      const payoutEmail = body?.payoutEmail as string | undefined;
+      if (!side || !payoutEmail) return NextResponse.json({ error: 'Missing payout profile fields' }, { status: 400 });
+      const challenge = await updatePayoutEmail(params.id, side, payoutEmail);
       return NextResponse.json({ challenge });
     }
 

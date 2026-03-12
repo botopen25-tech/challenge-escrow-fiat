@@ -121,6 +121,8 @@ export function ChallengeList({ viewerEmail }: { viewerEmail?: string | null }) 
                 <div><div className="muted">Opponent</div><div>{challenge.opponent}</div></div>
                 <div><div className="muted">Stake</div><div>{challenge.stake}</div></div>
                 <div><div className="muted">Agreement</div><div>{challenge.agreement}</div></div>
+                <div><div className="muted">Creator payout email</div><div>{challenge.creatorPayoutEmail ?? challenge.creator}</div></div>
+                <div><div className="muted">Opponent payout email</div><div>{challenge.opponentPayoutEmail ?? challenge.opponent}</div></div>
                 <div><div className="muted">Creator funded</div><div>{challenge.creatorFunded ? 'Yes' : 'No'}</div></div>
                 <div><div className="muted">Opponent funded</div><div>{challenge.opponentFunded ? 'Yes' : 'No'}</div></div>
                 <div><div className="muted">Creator result</div><div>{challenge.creatorResult ?? 'Waiting'}</div></div>

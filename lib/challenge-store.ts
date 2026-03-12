@@ -32,6 +32,8 @@ export type FiatChallenge = {
   agreement: 'Pending' | 'Waiting on results' | 'Agreed' | 'Conflict';
   resolution?: FiatChallengeResolution;
   payoutTarget?: string | null;
+  creatorPayoutEmail?: string | null;
+  opponentPayoutEmail?: string | null;
   creatorCheckoutSessionId?: string | null;
   opponentCheckoutSessionId?: string | null;
   creatorPaymentIntentId?: string | null;
@@ -54,6 +56,8 @@ type ChallengeRow = {
   agreement: 'Pending' | 'Waiting on results' | 'Agreed' | 'Conflict';
   resolution: FiatChallengeResolution;
   payout_target: string | null;
+  creator_payout_email: string | null;
+  opponent_payout_email: string | null;
   creator_checkout_session_id: string | null;
   opponent_checkout_session_id: string | null;
   creator_payment_intent_id: string | null;
@@ -77,6 +81,8 @@ function toChallenge(row: ChallengeRow): FiatChallenge {
     agreement: row.agreement,
     resolution: row.resolution ?? undefined,
     payoutTarget: row.payout_target,
+    creatorPayoutEmail: row.creator_payout_email,
+    opponentPayoutEmail: row.opponent_payout_email,
     creatorCheckoutSessionId: row.creator_checkout_session_id,
     opponentCheckoutSessionId: row.opponent_checkout_session_id,
     creatorPaymentIntentId: row.creator_payment_intent_id,
@@ -85,10 +91,10 @@ function toChallenge(row: ChallengeRow): FiatChallenge {
   };
 }
 
-function deriveResolution(result: FiatChallengeResult | null, creator: string, opponent: string) {
+function deriveResolution(result: FiatChallengeResult | null, creatorPayoutEmail: string | null, opponentPayoutEmail: string | null) {
   if (!result) return { resolution: null, payoutTarget: null };
-  if (result === 'creator_won') return { resolution: 'creator' as const, payoutTarget: creator };
-  if (result === 'opponent_won') return { resolution: 'opponent' as const, payoutTarget: opponent };
+  if (result === 'creator_won') return { resolution: 'creator' as const, payoutTarget: creatorPayoutEmail };
+  if (result === 'opponent_won') return { resolution: 'opponent' as const, payoutTarget: opponentPayoutEmail };
   return { resolution: 'tie' as const, payoutTarget: null };
 }
 
@@ -128,6 +134,8 @@ export async function createChallenge(input: Omit<FiatChallenge, 'id' | 'status'
       agreement: 'Pending',
       resolution: null,
       payout_target: null,
+      creator_payout_email: input.creatorPayoutEmail,
+      opponent_payout_email: input.opponentPayoutEmail,
       creator_checkout_session_id: null,
       opponent_checkout_session_id: null,
       creator_payment_intent_id: null,
@@ -184,6 +192,22 @@ export async function markFundingCaptured(id: string, side: 'creator' | 'opponen
   return toChallenge(data as ChallengeRow);
 }
 
+export async function updatePayoutEmail(id: string, side: 'creator' | 'opponent', payoutEmail: string) {
+  const update = side === 'creator'
+    ? { creator_payout_email: payoutEmail }
+    : { opponent_payout_email: payoutEmail };
+
+  const { data, error } = await supabaseAdmin
+    .from('challenges')
+    .update(update)
+    .eq('id', id)
+    .select('*')
+    .single();
+
+  if (error) throw error;
+  return toChallenge(data as ChallengeRow);
+}
+
 export async function fundChallenge(id: string, side: 'creator' | 'opponent') {
   return markFundingCaptured(id, side, null, null);
 }
@@ -203,7 +227,7 @@ export async function submitResult(id: string, side: 'creator' | 'opponent', cho
   if (creatorResult && opponentResult) {
     if (creatorResult === opponentResult) {
       agreement = 'Agreed';
-      const derived = deriveResolution(creatorResult, current.creator, current.opponent);
+      const derived = deriveResolution(creatorResult, current.creatorPayoutEmail ?? current.creator, current.opponentPayoutEmail ?? current.opponent);
       resolution = derived.resolution;
       payoutTarget = derived.payoutTarget;
       status = resolution === 'tie' ? 'Refund processing' : 'Payout processing';
