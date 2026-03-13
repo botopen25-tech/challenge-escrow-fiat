@@ -22,6 +22,10 @@ create table if not exists public.challenges (
   payout_target text,
   creator_payout_email text,
   opponent_payout_email text,
+  creator_stripe_account_id text,
+  opponent_stripe_account_id text,
+  creator_stripe_onboarding_complete boolean not null default false,
+  opponent_stripe_onboarding_complete boolean not null default false,
   creator_checkout_session_id text,
   opponent_checkout_session_id text,
   creator_payment_intent_id text,
@@ -31,10 +35,12 @@ create table if not exists public.challenges (
 
 alter table public.challenges add column if not exists resolution text;
 alter table public.challenges add column if not exists payout_target text;
-
 alter table public.challenges add column if not exists creator_payout_email text;
 alter table public.challenges add column if not exists opponent_payout_email text;
-
+alter table public.challenges add column if not exists creator_stripe_account_id text;
+alter table public.challenges add column if not exists opponent_stripe_account_id text;
+alter table public.challenges add column if not exists creator_stripe_onboarding_complete boolean not null default false;
+alter table public.challenges add column if not exists opponent_stripe_onboarding_complete boolean not null default false;
 alter table public.challenges add column if not exists creator_checkout_session_id text;
 alter table public.challenges add column if not exists opponent_checkout_session_id text;
 alter table public.challenges add column if not exists creator_payment_intent_id text;
@@ -46,20 +52,14 @@ alter table public.challenges disable row level security;
 Optional but recommended for server writes on Vercel:
 - add `SUPABASE_SERVICE_ROLE_KEY` to the app env vars
 
-Current code will fall back to the anon key if service role is not set.
+## New Connect endpoints
+- `POST /api/stripe/connect/onboard`
+- `POST /api/stripe/connect/status`
 
-## Current payout-state behavior
-- matching `creator_won` votes -> `Payout processing`
-- matching `opponent_won` votes -> `Payout processing`
-- matching `tie` votes -> `Refund processing` -> `Refunded`
-- conflicting votes -> `Disputed`
+## What this slice adds
+- creator/opponent Stripe Connect account ids
+- onboarding completion flags
+- onboarding link generation for each participant
+- payout readiness shown in the challenges UI
 
-## Payout destination prep now stored
-- creator payout email
-- opponent payout email
-- creator checkout session id
-- opponent checkout session id
-- creator payment intent id
-- opponent payment intent id
-
-This is still prep for winner payout architecture, not full money-out yet.
+This still does not send winner payouts yet. It prepares the real payout destination layer.

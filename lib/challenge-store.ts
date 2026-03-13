@@ -34,6 +34,10 @@ export type FiatChallenge = {
   payoutTarget?: string | null;
   creatorPayoutEmail?: string | null;
   opponentPayoutEmail?: string | null;
+  creatorStripeAccountId?: string | null;
+  opponentStripeAccountId?: string | null;
+  creatorStripeOnboardingComplete?: boolean;
+  opponentStripeOnboardingComplete?: boolean;
   creatorCheckoutSessionId?: string | null;
   opponentCheckoutSessionId?: string | null;
   creatorPaymentIntentId?: string | null;
@@ -58,6 +62,10 @@ type ChallengeRow = {
   payout_target: string | null;
   creator_payout_email: string | null;
   opponent_payout_email: string | null;
+  creator_stripe_account_id: string | null;
+  opponent_stripe_account_id: string | null;
+  creator_stripe_onboarding_complete: boolean | null;
+  opponent_stripe_onboarding_complete: boolean | null;
   creator_checkout_session_id: string | null;
   opponent_checkout_session_id: string | null;
   creator_payment_intent_id: string | null;
@@ -83,6 +91,10 @@ function toChallenge(row: ChallengeRow): FiatChallenge {
     payoutTarget: row.payout_target,
     creatorPayoutEmail: row.creator_payout_email,
     opponentPayoutEmail: row.opponent_payout_email,
+    creatorStripeAccountId: row.creator_stripe_account_id,
+    opponentStripeAccountId: row.opponent_stripe_account_id,
+    creatorStripeOnboardingComplete: row.creator_stripe_onboarding_complete ?? false,
+    opponentStripeOnboardingComplete: row.opponent_stripe_onboarding_complete ?? false,
     creatorCheckoutSessionId: row.creator_checkout_session_id,
     opponentCheckoutSessionId: row.opponent_checkout_session_id,
     creatorPaymentIntentId: row.creator_payment_intent_id,
@@ -99,27 +111,18 @@ function deriveResolution(result: FiatChallengeResult | null, creatorPayoutEmail
 }
 
 export async function listChallenges() {
-  const { data, error } = await supabaseAdmin
-    .from('challenges')
-    .select('*')
-    .order('created_at', { ascending: false });
-
+  const { data, error } = await supabaseAdmin.from('challenges').select('*').order('created_at', { ascending: false });
   if (error) throw error;
   return (data ?? []).map((row) => toChallenge(row as ChallengeRow));
 }
 
 export async function getChallenge(id: string) {
-  const { data, error } = await supabaseAdmin
-    .from('challenges')
-    .select('*')
-    .eq('id', id)
-    .maybeSingle();
-
+  const { data, error } = await supabaseAdmin.from('challenges').select('*').eq('id', id).maybeSingle();
   if (error) throw error;
   return data ? toChallenge(data as ChallengeRow) : null;
 }
 
-export async function createChallenge(input: Omit<FiatChallenge, 'id' | 'status' | 'agreement' | 'creatorFunded' | 'opponentFunded' | 'creatorResult' | 'opponentResult' | 'resolution' | 'payoutTarget' | 'creatorCheckoutSessionId' | 'opponentCheckoutSessionId' | 'creatorPaymentIntentId' | 'opponentPaymentIntentId' | 'createdAt'>) {
+export async function createChallenge(input: Omit<FiatChallenge, 'id' | 'status' | 'agreement' | 'creatorFunded' | 'opponentFunded' | 'creatorResult' | 'opponentResult' | 'resolution' | 'payoutTarget' | 'creatorStripeAccountId' | 'opponentStripeAccountId' | 'creatorStripeOnboardingComplete' | 'opponentStripeOnboardingComplete' | 'creatorCheckoutSessionId' | 'opponentCheckoutSessionId' | 'creatorPaymentIntentId' | 'opponentPaymentIntentId' | 'createdAt'>) {
   const { data, error } = await supabaseAdmin
     .from('challenges')
     .insert({
@@ -136,6 +139,10 @@ export async function createChallenge(input: Omit<FiatChallenge, 'id' | 'status'
       payout_target: null,
       creator_payout_email: input.creatorPayoutEmail,
       opponent_payout_email: input.opponentPayoutEmail,
+      creator_stripe_account_id: null,
+      opponent_stripe_account_id: null,
+      creator_stripe_onboarding_complete: false,
+      opponent_stripe_onboarding_complete: false,
       creator_checkout_session_id: null,
       opponent_checkout_session_id: null,
       creator_payment_intent_id: null,
@@ -143,7 +150,6 @@ export async function createChallenge(input: Omit<FiatChallenge, 'id' | 'status'
     })
     .select('*')
     .single();
-
   if (error) throw error;
   return toChallenge(data as ChallengeRow);
 }
@@ -151,13 +157,10 @@ export async function createChallenge(input: Omit<FiatChallenge, 'id' | 'status'
 export async function markFundingCaptured(id: string, side: 'creator' | 'opponent', checkoutSessionId: string | null, paymentIntentId: string | null) {
   const current = await getChallenge(id);
   if (!current) return null;
-
   const creatorFunded = side === 'creator' ? true : current.creatorFunded;
   const opponentFunded = side === 'opponent' ? true : current.opponentFunded;
-
   let status: FiatChallengeStatus = 'Waiting for creator funding';
   let agreement: FiatChallenge['agreement'] = current.agreement;
-
   if (creatorFunded && opponentFunded) {
     status = 'Waiting on results';
     agreement = 'Waiting on results';
@@ -165,14 +168,12 @@ export async function markFundingCaptured(id: string, side: 'creator' | 'opponen
     status = 'Waiting for opponent funding';
     agreement = 'Pending';
   }
-
   const update: Record<string, string | boolean | null> = {
     creator_funded: creatorFunded,
     opponent_funded: opponentFunded,
     status,
     agreement,
   };
-
   if (side === 'creator') {
     update.creator_checkout_session_id = checkoutSessionId;
     update.creator_payment_intent_id = paymentIntentId;
@@ -180,30 +181,23 @@ export async function markFundingCaptured(id: string, side: 'creator' | 'opponen
     update.opponent_checkout_session_id = checkoutSessionId;
     update.opponent_payment_intent_id = paymentIntentId;
   }
-
-  const { data, error } = await supabaseAdmin
-    .from('challenges')
-    .update(update)
-    .eq('id', id)
-    .select('*')
-    .single();
-
+  const { data, error } = await supabaseAdmin.from('challenges').update(update).eq('id', id).select('*').single();
   if (error) throw error;
   return toChallenge(data as ChallengeRow);
 }
 
 export async function updatePayoutEmail(id: string, side: 'creator' | 'opponent', payoutEmail: string) {
+  const update = side === 'creator' ? { creator_payout_email: payoutEmail } : { opponent_payout_email: payoutEmail };
+  const { data, error } = await supabaseAdmin.from('challenges').update(update).eq('id', id).select('*').single();
+  if (error) throw error;
+  return toChallenge(data as ChallengeRow);
+}
+
+export async function updateStripeAccount(id: string, side: 'creator' | 'opponent', accountId: string, onboardingComplete: boolean) {
   const update = side === 'creator'
-    ? { creator_payout_email: payoutEmail }
-    : { opponent_payout_email: payoutEmail };
-
-  const { data, error } = await supabaseAdmin
-    .from('challenges')
-    .update(update)
-    .eq('id', id)
-    .select('*')
-    .single();
-
+    ? { creator_stripe_account_id: accountId, creator_stripe_onboarding_complete: onboardingComplete }
+    : { opponent_stripe_account_id: accountId, opponent_stripe_onboarding_complete: onboardingComplete };
+  const { data, error } = await supabaseAdmin.from('challenges').update(update).eq('id', id).select('*').single();
   if (error) throw error;
   return toChallenge(data as ChallengeRow);
 }
@@ -215,15 +209,12 @@ export async function fundChallenge(id: string, side: 'creator' | 'opponent') {
 export async function submitResult(id: string, side: 'creator' | 'opponent', choice: FiatChallengeResult) {
   const current = await getChallenge(id);
   if (!current) return null;
-
   const creatorResult = side === 'creator' ? choice : current.creatorResult ?? null;
   const opponentResult = side === 'opponent' ? choice : current.opponentResult ?? null;
-
   let agreement: FiatChallenge['agreement'] = 'Waiting on results';
   let status: FiatChallengeStatus = 'Waiting on results';
   let resolution: FiatChallengeResolution = null;
   let payoutTarget: string | null = null;
-
   if (creatorResult && opponentResult) {
     if (creatorResult === opponentResult) {
       agreement = 'Agreed';
@@ -236,33 +227,18 @@ export async function submitResult(id: string, side: 'creator' | 'opponent', cho
       status = 'Disputed';
     }
   }
-
   const { data, error } = await supabaseAdmin
     .from('challenges')
-    .update({
-      creator_result: creatorResult,
-      opponent_result: opponentResult,
-      agreement,
-      status,
-      resolution,
-      payout_target: payoutTarget,
-    })
+    .update({ creator_result: creatorResult, opponent_result: opponentResult, agreement, status, resolution, payout_target: payoutTarget })
     .eq('id', id)
     .select('*')
     .single();
-
   if (error) throw error;
   return toChallenge(data as ChallengeRow);
 }
 
 export async function setChallengeStatus(id: string, status: FiatChallengeStatus) {
-  const { data, error } = await supabaseAdmin
-    .from('challenges')
-    .update({ status })
-    .eq('id', id)
-    .select('*')
-    .single();
-
+  const { data, error } = await supabaseAdmin.from('challenges').update({ status }).eq('id', id).select('*').single();
   if (error) throw error;
   return toChallenge(data as ChallengeRow);
 }
