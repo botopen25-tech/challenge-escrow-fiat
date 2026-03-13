@@ -6,8 +6,8 @@ import type { FiatChallenge } from '../lib/challenge-store';
 
 function formatResolution(challenge: FiatChallenge) {
   if (!challenge.resolution) return 'Not resolved yet';
-  if (challenge.resolution === 'creator') return `Creator payout queued (${challenge.payoutTarget})`;
-  if (challenge.resolution === 'opponent') return `Opponent payout queued (${challenge.payoutTarget})`;
+  if (challenge.resolution === 'creator') return challenge.status === 'Paid out' ? `Creator payout sent (${challenge.payoutTarget})` : `Creator payout queued (${challenge.payoutTarget})`;
+  if (challenge.resolution === 'opponent') return challenge.status === 'Paid out' ? `Opponent payout sent (${challenge.payoutTarget})` : `Opponent payout queued (${challenge.payoutTarget})`;
   if (challenge.status === 'Refunded') return 'Tie detected — both sides refunded';
   return 'Tie detected — refund path queued';
 }

@@ -21,6 +21,7 @@ create table if not exists public.challenges (
   opponent_stripe_account_id text,
   creator_stripe_onboarding_complete boolean not null default false,
   opponent_stripe_onboarding_complete boolean not null default false,
+  payout_transfer_ids text,
   creator_checkout_session_id text,
   opponent_checkout_session_id text,
   creator_payment_intent_id text,
@@ -36,6 +37,7 @@ alter table public.challenges add column if not exists creator_stripe_account_id
 alter table public.challenges add column if not exists opponent_stripe_account_id text;
 alter table public.challenges add column if not exists creator_stripe_onboarding_complete boolean not null default false;
 alter table public.challenges add column if not exists opponent_stripe_onboarding_complete boolean not null default false;
+alter table public.challenges add column if not exists payout_transfer_ids text;
 alter table public.challenges add column if not exists creator_checkout_session_id text;
 alter table public.challenges add column if not exists opponent_checkout_session_id text;
 alter table public.challenges add column if not exists creator_payment_intent_id text;

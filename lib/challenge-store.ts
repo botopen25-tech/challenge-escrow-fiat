@@ -38,6 +38,7 @@ export type FiatChallenge = {
   opponentStripeAccountId?: string | null;
   creatorStripeOnboardingComplete?: boolean;
   opponentStripeOnboardingComplete?: boolean;
+  payoutTransferIds?: string | null;
   creatorCheckoutSessionId?: string | null;
   opponentCheckoutSessionId?: string | null;
   creatorPaymentIntentId?: string | null;
@@ -66,6 +67,7 @@ type ChallengeRow = {
   opponent_stripe_account_id: string | null;
   creator_stripe_onboarding_complete: boolean | null;
   opponent_stripe_onboarding_complete: boolean | null;
+  payout_transfer_ids: string | null;
   creator_checkout_session_id: string | null;
   opponent_checkout_session_id: string | null;
   creator_payment_intent_id: string | null;
@@ -95,6 +97,7 @@ function toChallenge(row: ChallengeRow): FiatChallenge {
     opponentStripeAccountId: row.opponent_stripe_account_id,
     creatorStripeOnboardingComplete: row.creator_stripe_onboarding_complete ?? false,
     opponentStripeOnboardingComplete: row.opponent_stripe_onboarding_complete ?? false,
+    payoutTransferIds: row.payout_transfer_ids,
     creatorCheckoutSessionId: row.creator_checkout_session_id,
     opponentCheckoutSessionId: row.opponent_checkout_session_id,
     creatorPaymentIntentId: row.creator_payment_intent_id,
@@ -122,7 +125,7 @@ export async function getChallenge(id: string) {
   return data ? toChallenge(data as ChallengeRow) : null;
 }
 
-export async function createChallenge(input: Omit<FiatChallenge, 'id' | 'status' | 'agreement' | 'creatorFunded' | 'opponentFunded' | 'creatorResult' | 'opponentResult' | 'resolution' | 'payoutTarget' | 'creatorStripeAccountId' | 'opponentStripeAccountId' | 'creatorStripeOnboardingComplete' | 'opponentStripeOnboardingComplete' | 'creatorCheckoutSessionId' | 'opponentCheckoutSessionId' | 'creatorPaymentIntentId' | 'opponentPaymentIntentId' | 'createdAt'>) {
+export async function createChallenge(input: Omit<FiatChallenge, 'id' | 'status' | 'agreement' | 'creatorFunded' | 'opponentFunded' | 'creatorResult' | 'opponentResult' | 'resolution' | 'payoutTarget' | 'creatorStripeAccountId' | 'opponentStripeAccountId' | 'creatorStripeOnboardingComplete' | 'opponentStripeOnboardingComplete' | 'payoutTransferIds' | 'creatorCheckoutSessionId' | 'opponentCheckoutSessionId' | 'creatorPaymentIntentId' | 'opponentPaymentIntentId' | 'createdAt'>) {
   const { data, error } = await supabaseAdmin
     .from('challenges')
     .insert({
@@ -143,6 +146,7 @@ export async function createChallenge(input: Omit<FiatChallenge, 'id' | 'status'
       opponent_stripe_account_id: null,
       creator_stripe_onboarding_complete: false,
       opponent_stripe_onboarding_complete: false,
+      payout_transfer_ids: null,
       creator_checkout_session_id: null,
       opponent_checkout_session_id: null,
       creator_payment_intent_id: null,
@@ -198,6 +202,17 @@ export async function updateStripeAccount(id: string, side: 'creator' | 'opponen
     ? { creator_stripe_account_id: accountId, creator_stripe_onboarding_complete: onboardingComplete }
     : { opponent_stripe_account_id: accountId, opponent_stripe_onboarding_complete: onboardingComplete };
   const { data, error } = await supabaseAdmin.from('challenges').update(update).eq('id', id).select('*').single();
+  if (error) throw error;
+  return toChallenge(data as ChallengeRow);
+}
+
+export async function markChallengePaidOut(id: string, transferIds: string[]) {
+  const { data, error } = await supabaseAdmin
+    .from('challenges')
+    .update({ status: 'Paid out', payout_transfer_ids: transferIds.join(',') })
+    .eq('id', id)
+    .select('*')
+    .single();
   if (error) throw error;
   return toChallenge(data as ChallengeRow);
 }

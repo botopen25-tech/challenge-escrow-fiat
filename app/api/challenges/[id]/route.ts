@@ -1,11 +1,20 @@
 import Stripe from 'stripe';
 import { NextResponse } from 'next/server';
 import { getStripe } from '../../../../lib/stripe';
-import { fundChallenge, getChallenge, setChallengeStatus, submitResult, updatePayoutEmail } from '../../../../lib/challenge-store';
+import { fundChallenge, getChallenge, markChallengePaidOut, setChallengeStatus, submitResult, updatePayoutEmail } from '../../../../lib/challenge-store';
 
 function isAlreadyRefundedError(error: unknown) {
   if (!(error instanceof Error)) return false;
   return error.message.toLowerCase().includes('already been refunded');
+}
+
+async function getChargeIdFromPaymentIntent(stripe: Stripe, paymentIntentId: string) {
+  const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+  const latestCharge = paymentIntent.latest_charge;
+  if (!latestCharge) {
+    throw new Error(`No charge found for payment intent ${paymentIntentId}`);
+  }
+  return typeof latestCharge === 'string' ? latestCharge : latestCharge.id;
 }
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
@@ -92,6 +101,69 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
           const failed = await setChallengeStatus(params.id, 'Payout failed');
           const message = error instanceof Error ? error.message : 'Refund failed';
+          return NextResponse.json({ challenge: failed, error: message }, { status: 500 });
+        }
+      }
+
+      if (challenge.status === 'Payout processing') {
+        const winnerSide = challenge.resolution;
+        const winnerAccountId = winnerSide === 'creator'
+          ? challenge.creatorStripeAccountId
+          : winnerSide === 'opponent'
+            ? challenge.opponentStripeAccountId
+            : null;
+        const winnerReady = winnerSide === 'creator'
+          ? challenge.creatorStripeOnboardingComplete
+          : winnerSide === 'opponent'
+            ? challenge.opponentStripeOnboardingComplete
+            : false;
+
+        if (!winnerSide || winnerSide === 'tie') {
+          const failed = await setChallengeStatus(params.id, 'Payout failed');
+          return NextResponse.json({ challenge: failed, error: 'No winner side available for payout' }, { status: 500 });
+        }
+
+        if (!winnerAccountId || !winnerReady) {
+          const failed = await setChallengeStatus(params.id, 'Payout failed');
+          return NextResponse.json({ challenge: failed, error: 'Winner Stripe Connect account is not ready' }, { status: 500 });
+        }
+
+        if (!challenge.creatorPaymentIntentId || !challenge.opponentPaymentIntentId) {
+          const failed = await setChallengeStatus(params.id, 'Payout failed');
+          return NextResponse.json({ challenge: failed, error: 'Missing payment intent ids for payout' }, { status: 500 });
+        }
+
+        try {
+          const stripe = getStripe();
+          const creatorChargeId = await getChargeIdFromPaymentIntent(stripe, challenge.creatorPaymentIntentId);
+          const opponentChargeId = await getChargeIdFromPaymentIntent(stripe, challenge.opponentPaymentIntentId);
+          const amount = Math.round(Number(String(challenge.stake).replace(/[^0-9.]/g, '')) * 100);
+
+          if (!amount || Number.isNaN(amount)) {
+            throw new Error('Invalid challenge stake for payout');
+          }
+
+          const transferOne = await stripe.transfers.create({
+            amount,
+            currency: 'usd',
+            destination: winnerAccountId,
+            source_transaction: creatorChargeId,
+            metadata: { challengeId: challenge.id, winnerSide, leg: 'creator_funding' },
+          });
+
+          const transferTwo = await stripe.transfers.create({
+            amount,
+            currency: 'usd',
+            destination: winnerAccountId,
+            source_transaction: opponentChargeId,
+            metadata: { challengeId: challenge.id, winnerSide, leg: 'opponent_funding' },
+          });
+
+          const paid = await markChallengePaidOut(params.id, [transferOne.id, transferTwo.id]);
+          return NextResponse.json({ challenge: paid });
+        } catch (error) {
+          const failed = await setChallengeStatus(params.id, 'Payout failed');
+          const message = error instanceof Error ? error.message : 'Winner payout failed';
           return NextResponse.json({ challenge: failed, error: message }, { status: 500 });
         }
       }

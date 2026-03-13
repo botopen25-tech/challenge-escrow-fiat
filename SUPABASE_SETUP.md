@@ -26,6 +26,7 @@ create table if not exists public.challenges (
   opponent_stripe_account_id text,
   creator_stripe_onboarding_complete boolean not null default false,
   opponent_stripe_onboarding_complete boolean not null default false,
+  payout_transfer_ids text,
   creator_checkout_session_id text,
   opponent_checkout_session_id text,
   creator_payment_intent_id text,
@@ -41,6 +42,7 @@ alter table public.challenges add column if not exists creator_stripe_account_id
 alter table public.challenges add column if not exists opponent_stripe_account_id text;
 alter table public.challenges add column if not exists creator_stripe_onboarding_complete boolean not null default false;
 alter table public.challenges add column if not exists opponent_stripe_onboarding_complete boolean not null default false;
+alter table public.challenges add column if not exists payout_transfer_ids text;
 alter table public.challenges add column if not exists creator_checkout_session_id text;
 alter table public.challenges add column if not exists opponent_checkout_session_id text;
 alter table public.challenges add column if not exists creator_payment_intent_id text;
@@ -49,17 +51,11 @@ alter table public.challenges add column if not exists opponent_payment_intent_i
 alter table public.challenges disable row level security;
 ```
 
-Optional but recommended for server writes on Vercel:
-- add `SUPABASE_SERVICE_ROLE_KEY` to the app env vars
+## Winner payout path now
+- matched `creator_won` or `opponent_won` votes move to `Payout processing`
+- backend attempts Stripe transfers to the winner's Connect account
+- on success -> `Paid out`
+- on failure -> `Payout failed`
 
-## New Connect endpoints
-- `POST /api/stripe/connect/onboard`
-- `POST /api/stripe/connect/status`
-
-## What this slice adds
-- creator/opponent Stripe Connect account ids
-- onboarding completion flags
-- onboarding link generation for each participant
-- payout readiness shown in the challenges UI
-
-This still does not send winner payouts yet. It prepares the real payout destination layer.
+## Tie path
+- matching `tie` votes -> refunds both original payments -> `Refunded`
