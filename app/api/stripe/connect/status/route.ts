@@ -24,10 +24,18 @@ export async function POST(request: Request) {
 
     const stripe = getStripe();
     const account = await stripe.accounts.retrieve(accountId);
-    const onboardingComplete = !!account.details_submitted && !!account.charges_enabled;
+    const transfersActive = account.capabilities?.transfers === 'active';
+    const onboardingComplete = !!account.details_submitted && (!!account.payouts_enabled || transfersActive);
     const updated = await updateStripeAccount(challengeId, side, accountId, onboardingComplete);
 
-    return NextResponse.json({ challenge: updated, onboardingComplete, accountId });
+    return NextResponse.json({
+      challenge: updated,
+      onboardingComplete,
+      accountId,
+      detailsSubmitted: !!account.details_submitted,
+      payoutsEnabled: !!account.payouts_enabled,
+      transfersCapability: account.capabilities?.transfers ?? null,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not refresh Connect status';
     return NextResponse.json({ error: message }, { status: 500 });
