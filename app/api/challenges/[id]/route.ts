@@ -1,6 +1,12 @@
+import Stripe from 'stripe';
 import { NextResponse } from 'next/server';
 import { getStripe } from '../../../../lib/stripe';
 import { fundChallenge, getChallenge, setChallengeStatus, submitResult, updatePayoutEmail } from '../../../../lib/challenge-store';
+
+function isAlreadyRefundedError(error: unknown) {
+  if (!(error instanceof Error)) return false;
+  return error.message.toLowerCase().includes('already been refunded');
+}
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   try {
@@ -34,9 +40,21 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     }
 
     if (body?.type === 'result') {
+      const existing = await getChallenge(params.id);
+      if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+      if (['Refunded', 'Paid out'].includes(existing.status)) {
+        return NextResponse.json({ challenge: existing });
+      }
+
       const side = body?.side as 'creator' | 'opponent' | undefined;
       const choice = body?.choice as 'creator_won' | 'opponent_won' | 'tie' | undefined;
       if (!side || !choice) return NextResponse.json({ error: 'Missing result fields' }, { status: 400 });
+
+      if (existing.status === 'Refund processing' && existing.resolution === 'tie') {
+        return NextResponse.json({ challenge: existing });
+      }
+
       const challenge = await submitResult(params.id, side, choice);
       if (!challenge) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
@@ -48,11 +66,30 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
         try {
           const stripe = getStripe();
-          await stripe.refunds.create({ payment_intent: challenge.creatorPaymentIntentId, reason: 'requested_by_customer' });
-          await stripe.refunds.create({ payment_intent: challenge.opponentPaymentIntentId, reason: 'requested_by_customer' });
+          await stripe.refunds.create({
+            payment_intent: challenge.creatorPaymentIntentId,
+            reason: 'requested_by_customer',
+            metadata: { challengeId: challenge.id, side: 'creator' },
+          });
+
+          try {
+            await stripe.refunds.create({
+              payment_intent: challenge.opponentPaymentIntentId,
+              reason: 'requested_by_customer',
+              metadata: { challengeId: challenge.id, side: 'opponent' },
+            });
+          } catch (error) {
+            if (!isAlreadyRefundedError(error)) throw error;
+          }
+
           const refunded = await setChallengeStatus(params.id, 'Refunded');
           return NextResponse.json({ challenge: refunded });
         } catch (error) {
+          if (isAlreadyRefundedError(error)) {
+            const refunded = await setChallengeStatus(params.id, 'Refunded');
+            return NextResponse.json({ challenge: refunded });
+          }
+
           const failed = await setChallengeStatus(params.id, 'Payout failed');
           const message = error instanceof Error ? error.message : 'Refund failed';
           return NextResponse.json({ challenge: failed, error: message }, { status: 500 });

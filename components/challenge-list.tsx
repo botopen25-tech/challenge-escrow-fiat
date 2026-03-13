@@ -99,6 +99,7 @@ export function ChallengeList({ viewerEmail }: { viewerEmail?: string | null }) 
           const mySide = viewerEmail === challenge.creator ? 'creator' : viewerEmail === challenge.opponent ? 'opponent' : null;
           const canFundCreator = mySide === 'creator' && !challenge.creatorFunded;
           const canFundOpponent = mySide === 'opponent' && !challenge.opponentFunded;
+          const canVote = challenge.status === 'Waiting on results' && mySide;
           const waitingOnOtherSide = !mySide
             ? 'Sign in as a participant to fund this wager.'
             : mySide === 'creator' && !challenge.opponentFunded
@@ -134,7 +135,7 @@ export function ChallengeList({ viewerEmail }: { viewerEmail?: string | null }) 
                 {canFundCreator ? <button type="button" className="buttonSecondary" disabled={busyKey === `${challenge.id}:fund:creator`} onClick={() => startFunding(challenge.id, 'creator')}>{busyKey === `${challenge.id}:fund:creator` ? 'Opening Stripe…' : 'Fund my side'}</button> : null}
                 {canFundOpponent ? <button type="button" className="buttonSecondary" disabled={busyKey === `${challenge.id}:fund:opponent`} onClick={() => startFunding(challenge.id, 'opponent')}>{busyKey === `${challenge.id}:fund:opponent` ? 'Opening Stripe…' : 'Fund my side'}</button> : null}
                 {challenge.status !== 'Waiting on results' && !challenge.status.includes('processing') && waitingOnOtherSide ? <p className="muted" style={{ margin: 0 }}>{waitingOnOtherSide}</p> : null}
-                {challenge.status === 'Waiting on results' && mySide ? (
+                {canVote ? (
                   <>
                     <button type="button" className="buttonSecondary" onClick={() => updateChallenge(challenge.id, { type: 'result', side: mySide, choice: 'creator_won' })}>Creator won</button>
                     <button type="button" className="buttonSecondary" onClick={() => updateChallenge(challenge.id, { type: 'result', side: mySide, choice: 'opponent_won' })}>Opponent won</button>
