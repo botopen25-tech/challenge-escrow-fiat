@@ -85,8 +85,20 @@ export function ChallengeList({ viewerEmail }: { viewerEmail?: string | null }) 
     setMessage('Stripe checkout did not return a redirect URL');
   }
 
-  const filtered = viewerEmail
-    ? challenges.filter((challenge) => challenge.creator === viewerEmail || challenge.opponent === viewerEmail)
+  const normalizedViewerEmail = viewerEmail?.trim().toLowerCase() ?? null;
+
+  const filtered = normalizedViewerEmail
+    ? challenges.filter((challenge) => {
+        const creator = challenge.creator?.trim().toLowerCase();
+        const opponent = challenge.opponent?.trim().toLowerCase();
+        const creatorPayoutEmail = challenge.creatorPayoutEmail?.trim().toLowerCase();
+        const opponentPayoutEmail = challenge.opponentPayoutEmail?.trim().toLowerCase();
+
+        return creator === normalizedViewerEmail
+          || opponent === normalizedViewerEmail
+          || creatorPayoutEmail === normalizedViewerEmail
+          || opponentPayoutEmail === normalizedViewerEmail;
+      })
     : challenges;
 
   return (
@@ -96,7 +108,13 @@ export function ChallengeList({ viewerEmail }: { viewerEmail?: string | null }) 
       {message ? <section className="card"><p>{message}</p></section> : null}
       <div className="grid grid-2">
         {filtered.map((challenge) => {
-          const mySide = viewerEmail === challenge.creator ? 'creator' : viewerEmail === challenge.opponent ? 'opponent' : null;
+          const creatorMatches = [challenge.creator, challenge.creatorPayoutEmail]
+            .filter(Boolean)
+            .some((value) => value?.trim().toLowerCase() === normalizedViewerEmail);
+          const opponentMatches = [challenge.opponent, challenge.opponentPayoutEmail]
+            .filter(Boolean)
+            .some((value) => value?.trim().toLowerCase() === normalizedViewerEmail);
+          const mySide = creatorMatches ? 'creator' : opponentMatches ? 'opponent' : null;
           const canFundCreator = mySide === 'creator' && !challenge.creatorFunded;
           const canFundOpponent = mySide === 'opponent' && !challenge.opponentFunded;
           const canVote = challenge.status === 'Waiting on results' && mySide;
